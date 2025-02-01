@@ -50,7 +50,7 @@ func transfer(src net.Conn, dst net.Conn) {
 			err)
 		return
 	}
-	go log.Printf("wrote %d bytes from %s to %s\n",
+	log.Printf("wrote %d bytes from %s to %s\n",
 		n,
 		src.RemoteAddr().String(),
 		dst.RemoteAddr().String())
