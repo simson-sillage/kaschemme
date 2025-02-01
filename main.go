@@ -9,6 +9,14 @@ import (
 func main() {
 	localAddr := ":8080"
 	remoteAddr := "localhost:8081"
+
+	if _, err := net.ResolveTCPAddr("tcp", localAddr); err != nil {
+		log.Fatalf("invalid address: %s: %v\n", localAddr, err)
+	}
+	if _, err := net.ResolveTCPAddr("tcp", remoteAddr); err != nil {
+		log.Fatalf("invalid address: %s: %v\n", remoteAddr, err)
+	}
+
 	listener, err := net.Listen("tcp", localAddr)
 	if err != nil {
 		log.Fatalf("failed to bind to %s: %s\n", localAddr, err)
@@ -29,16 +37,18 @@ func main() {
 
 func handleConnection(src net.Conn, destAddr string) {
 	defer src.Close()
-	log.Printf("handling connection for %s\n", src.RemoteAddr())
+	go log.Printf("handling connection for %s\n", src.RemoteAddr())
 	dst, err := net.Dial("tcp", destAddr)
 	if err != nil {
-		log.Printf("Failed to connect to remote: %s: %s\n", destAddr, err)
+		log.Printf("Failed to connect from %s to remote: %s: %s\n",
+			src.RemoteAddr().String(),
+			destAddr,
+			err)
 		return
 	}
 	defer dst.Close()
 	go transfer(src, dst)
 	transfer(dst, src)
-
 }
 
 func transfer(src net.Conn, dst net.Conn) {
