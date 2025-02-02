@@ -4,12 +4,46 @@ import (
 	"io"
 	"log"
 	"net"
+
+	"github.com/spf13/cobra"
 )
 
 func main() {
-	localAddr := ":8080"
-	remoteAddr := "localhost:8081"
+	var rootCmd = &cobra.Command{Use: "kaschemme"}
 
+	var tcpCmd = &cobra.Command{
+		Use:   "tcp",
+		Short: "run kaschemme in tcp streaming mode",
+		Run:   tcpMode,
+	}
+	tcpCmd.Flags().String("local-address", "", "local address to bind to")
+	tcpCmd.MarkFlagRequired("local-address")
+	tcpCmd.Flags().String("remote-address", "", "remote address to foward to")
+	tcpCmd.MarkFlagRequired("remote-address")
+	rootCmd.AddCommand(tcpCmd)
+
+	var redisCmd = &cobra.Command{
+		Use:   "redis",
+		Short: "run kaschemme in redis mode",
+		Run:   redisMode,
+	}
+	rootCmd.AddCommand(redisCmd)
+
+	err := rootCmd.Execute()
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func tcpMode(cmd *cobra.Command, args []string) {
+	localAddr, err := cmd.Flags().GetString("local-address")
+	if err != nil {
+		log.Fatalf("error parsing flags: %s\n", err)
+	}
+	remoteAddr, err := cmd.Flags().GetString("remote-address")
+	if err != nil {
+		log.Fatalf("error parsing flags: %s\n", err)
+	}
 	if _, err := net.ResolveTCPAddr("tcp", localAddr); err != nil {
 		log.Fatalf("invalid address: %s: %v\n", localAddr, err)
 	}
@@ -33,6 +67,10 @@ func main() {
 		}
 		go handleConnection(conn, remoteAddr)
 	}
+}
+
+func redisMode(cmd *cobra.Command, args []string) {
+	log.Fatalln("redis mode is not implemented")
 }
 
 func handleConnection(src net.Conn, destAddr string) {
