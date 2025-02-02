@@ -47,11 +47,18 @@ func handleConnection(src net.Conn, destAddr string) {
 		return
 	}
 	defer dst.Close()
-	go transfer(src, dst)
-	transfer(dst, src)
+
+	done1 := make(chan struct{})
+	done2 := make(chan struct{})
+
+	go transfer(src, dst, done1)
+	go transfer(dst, src, done2)
+
+	<-done1
+	<-done2
 }
 
-func transfer(src net.Conn, dst net.Conn) {
+func transfer(src net.Conn, dst net.Conn, done chan struct{}) {
 	n, err := io.Copy(dst, src)
 	if err != nil {
 		log.Printf("error copying from %s to %s: %s\n",
@@ -64,4 +71,5 @@ func transfer(src net.Conn, dst net.Conn) {
 		n,
 		src.RemoteAddr().String(),
 		dst.RemoteAddr().String())
+	close(done)
 }
