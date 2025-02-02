@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -92,19 +93,28 @@ func handleConnection(src net.Conn, destAddr string) {
 	go transfer(src, dst, done1)
 	go transfer(dst, src, done2)
 
-	<-done1
-	<-done2
+	select {
+	case _ = <-done1:
+	case _ = <-done2:
+	}
 }
 
 func transfer(src net.Conn, dst net.Conn, done chan struct{}) {
 	n, err := io.Copy(dst, src)
-	if err != nil {
+	if errors.Is(err, net.ErrClosed) {
+		log.Printf("connection closed: %s -> %s. bytes written: %d\n",
+			src.RemoteAddr().String(),
+			dst.RemoteAddr().String(),
+			n)
+		return
+	} else if err != nil {
 		log.Printf("error copying from %s to %s: %s\n",
 			src.RemoteAddr().String(),
 			dst.RemoteAddr().String(),
 			err)
 		return
 	}
+
 	log.Printf("wrote %d bytes from %s to %s\n",
 		n,
 		src.RemoteAddr().String(),
