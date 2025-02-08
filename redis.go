@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
@@ -38,11 +38,31 @@ func redisMode(cmd *cobra.Command, args []string) {
 	}
 	config := RedisConfig{}
 	yaml.Unmarshal(rawConfig, &config)
-	fmt.Println("sentinels:", config.Sentinels)
-	fmt.Println("redis pass:", config.RedisPass)
-	fmt.Println("sentinel pass:", config.SentinelPass)
-	fmt.Println("master name:", config.MasterName)
+	for _, sentinel := range config.Sentinels {
+		if _, err := net.ResolveTCPAddr("tcp", sentinel); err != nil {
+			log.Fatalf("invalid address: %s: %v\n", localAddr, err)
+		}
+	}
 
+	listener, err := net.Listen("tcp", localAddr)
+	if err != nil {
+		log.Fatalf("failed to bind to %s: %s\n", localAddr, err)
+	}
+	defer listener.Close()
+	log.Printf("Listening on: %s\n", localAddr)
+	log.Printf("Configured Sentinels: %s\n", strings.Join(config.Sentinels, ","))
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Printf("Connection error: %s\n", err)
+			continue
+		}
+		go redisHandleConnection(conn, config)
+	}
+}
+
+func redisHandleConnection(src net.Conn, config RedisConfig) {
 	ctx := context.TODO()
 	masterVoting := make(map[string]int)
 	for _, addr := range config.Sentinels {
@@ -52,13 +72,19 @@ func redisMode(cmd *cobra.Command, args []string) {
 		defer sentinel.Close()
 		response, err := sentinel.GetMasterAddrByName(ctx, config.MasterName).Result()
 		if err != nil {
-			log.Fatalln(err)
+			log.Printf("error getting master from %s: %s\n", addr, err)
+			continue
 		}
 		masterAddr := net.JoinHostPort(response[0], response[1])
 		masterVoting[masterAddr] += 1
 	}
+	if len(masterVoting) <= 0 {
+		log.Printf("error: couldn't determine master\n")
+		return
+	}
+
 	master := findMaster(masterVoting)
-	fmt.Println("master:", master)
+	handleConnection(src, master)
 }
 
 func findMaster(masterVoting map[string]int) string {
