@@ -50,7 +50,7 @@ func redisMode(cmd *cobra.Command, args []string) {
 	}
 	defer listener.Close()
 	log.Printf("Listening on: %s\n", localAddr)
-	log.Printf("Configured Sentinels: %s\n", strings.Join(config.Sentinels, ","))
+	log.Printf("Configured Sentinels: %s\n", strings.Join(config.Sentinels, ", "))
 
 	for {
 		conn, err := listener.Accept()
@@ -84,7 +84,8 @@ func redisHandleConnection(src net.Conn, config RedisConfig) {
 	}
 
 	master := findMaster(masterVoting)
-	handleConnection(src, master)
+	go handleConnection(src, master)
+	log.Printf("current master: %s\n", master)
 }
 
 func findMaster(masterVoting map[string]int) string {
