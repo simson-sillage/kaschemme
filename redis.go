@@ -86,6 +86,8 @@ func getMasterCandidates(config RedisConfig) map[string]int {
 			Addr: addr,
 		})
 		defer sentinel.Close()
+		// TODO: this should be a go routine. We don't need to query the
+		// sentinels sequentially
 		response, err := sentinel.GetMasterAddrByName(ctx, config.MasterName).Result()
 		if err != nil {
 			log.Printf("error getting master from %s: %s\n", addr, err)
