@@ -62,8 +62,20 @@ func redisMode(cmd *cobra.Command, args []string) {
 }
 
 func redisHandleConnection(src net.Conn, config RedisConfig) {
+	candidates := getMasterCandidates(config)
+	if len(candidates) <= 0 {
+		log.Printf("error: couldn't determine master\n")
+		return
+	}
+
+	master, votes := findMaster(candidates)
+	go handleConnection(src, master)
+	log.Printf("current master: %s, votes: %d\n", master, votes)
+}
+
+func getMasterCandidates(config RedisConfig) map[string]int {
 	ctx := context.TODO()
-	masterVoting := make(map[string]int)
+	candidates := make(map[string]int)
 	for _, addr := range config.Sentinels {
 		sentinel := redis.NewSentinelClient(&redis.Options{
 			Addr: addr,
@@ -75,19 +87,13 @@ func redisHandleConnection(src net.Conn, config RedisConfig) {
 			continue
 		}
 		masterAddr := net.JoinHostPort(response[0], response[1])
-		masterVoting[masterAddr] += 1
-	}
-	if len(masterVoting) <= 0 {
-		log.Printf("error: couldn't determine master\n")
-		return
+		candidates[masterAddr] += 1
 	}
 
-	master := findMaster(masterVoting)
-	go handleConnection(src, master)
-	log.Printf("current master: %s\n", master)
+	return candidates
 }
 
-func findMaster(masterVoting map[string]int) string {
+func findMaster(masterVoting map[string]int) (string, int) {
 	currentMaster := ""
 	currentCount := 0
 	for master, count := range masterVoting {
@@ -97,5 +103,5 @@ func findMaster(masterVoting map[string]int) string {
 		}
 	}
 
-	return currentMaster
+	return currentMaster, currentCount
 }
