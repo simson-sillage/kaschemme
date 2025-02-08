@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/spf13/cobra"
@@ -8,6 +9,13 @@ import (
 
 func main() {
 	var rootCmd = &cobra.Command{Use: "kaschemme"}
+
+	var versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "prints the version",
+		Run:   printVersion,
+	}
+	rootCmd.AddCommand(versionCmd)
 
 	var tcpCmd = &cobra.Command{
 		Use:   "tcp",
@@ -35,4 +43,8 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func printVersion(cmd *cobra.Command, args []string) {
+	fmt.Println("version: v1")
 }
