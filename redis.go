@@ -14,7 +14,6 @@ import (
 
 type RedisConfig struct {
 	Sentinels    []string `yaml:"sentinels"`
-	RedisPass    string   `yaml:"redis_pass"`
 	SentinelPass string   `yaml:"sentinel_pass"`
 	MasterName   string   `yaml:"master_name"`
 }
