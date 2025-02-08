@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
@@ -13,9 +14,10 @@ import (
 )
 
 type RedisConfig struct {
-	Sentinels    []string `yaml:"sentinels"`
-	SentinelPass string   `yaml:"sentinel_pass"`
-	MasterName   string   `yaml:"master_name"`
+	Sentinels       []string `yaml:"sentinels"`
+	SentinelPass    string   `yaml:"sentinel_pass"`
+	SentinelTimeout int      `yaml:"sentinel_timeout"`
+	MasterName      string   `yaml:"master_name"`
 }
 
 func redisMode(cmd *cobra.Command, args []string) {
@@ -74,9 +76,12 @@ func redisHandleConnection(src net.Conn, config RedisConfig) {
 }
 
 func getMasterCandidates(config RedisConfig) map[string]int {
-	ctx := context.TODO()
 	candidates := make(map[string]int)
 	for _, addr := range config.Sentinels {
+		ctx, cancel := context.WithTimeout(
+			context.Background(),
+			time.Duration(config.SentinelTimeout)*time.Second)
+		defer cancel()
 		sentinel := redis.NewSentinelClient(&redis.Options{
 			Addr: addr,
 		})
