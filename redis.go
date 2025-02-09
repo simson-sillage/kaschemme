@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -40,8 +41,9 @@ func redisMode(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("error reading config file at %s: %s\n", configPath, err)
 	}
+	// set defaults
 	config := RedisConfig{
-		SentinelTimeout:    5,
+		SentinelTimeout:    2,
 		MasterCacheTimeout: 5,
 		SentinelPass:       "",
 	}
@@ -91,6 +93,7 @@ func updateMasterPeriodically(ptrMaster *atomic.Pointer[string], config RedisCon
 	log.Printf("trying to update master every %d seconds\n", config.MasterCacheTimeout)
 	for {
 		updateMaster(ptrMaster, config)
+		// should we user time.Ticker here?
 		time.Sleep(cacheTimeout)
 	}
 }
@@ -106,40 +109,54 @@ func redisHandleConnection(src net.Conn, ptrMaster *atomic.Pointer[string]) {
 }
 
 func findMaster(config RedisConfig) (string, int, error) {
-	candidates := getMasterCandidates(config)
-	if len(candidates) <= 0 {
+	masterVotes := getMasterVotes(config)
+	if len(masterVotes) <= 0 {
 		return "", 0, errors.New("couldn't determine master")
 	}
 
-	master, votes := countMasterVotes(candidates)
+	master, votes := countMasterVotes(masterVotes)
 	return master, votes, nil
 }
 
-func getMasterCandidates(config RedisConfig) map[string]int {
-	candidates := make(map[string]int)
+func getMasterVotes(config RedisConfig) map[string]int {
+	var wg sync.WaitGroup
+	candidates := make(chan string, len(config.Sentinels))
 	for _, addr := range config.Sentinels {
-		ctx, cancel := context.WithTimeout(
-			context.Background(),
-			time.Duration(config.SentinelTimeout)*time.Second)
-		defer cancel()
-		sentinel := redis.NewSentinelClient(&redis.Options{
-			Addr: addr,
-		})
-		defer sentinel.Close()
-		// TODO: this should be a go routine. We don't need to query the
-		// sentinels sequentially
-		response, err := sentinel.GetMasterAddrByName(ctx, config.MasterName).Result()
-		if err != nil {
-			log.Printf("error getting master from %s: %s\n", addr, err)
-			continue
-		}
-		masterAddr := net.JoinHostPort(response[0], response[1])
-		candidates[masterAddr] += 1
+		wg.Add(1)
+		go fetchMasterCandidate(addr, config, &wg, candidates)
 	}
 
-	return candidates
+	votes := make(map[string]int)
+	wg.Wait()
+	close(candidates)
+	for vote := range candidates {
+		votes[vote] += 1
+	}
+
+	return votes
 }
 
+func fetchMasterCandidate(addr string, config RedisConfig, wg *sync.WaitGroup, candidates chan<- string) {
+	defer wg.Done()
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(config.SentinelTimeout)*time.Second)
+	defer cancel()
+	sentinel := redis.NewSentinelClient(&redis.Options{
+		Addr: addr,
+	})
+	defer sentinel.Close()
+	response, err := sentinel.GetMasterAddrByName(ctx, config.MasterName).Result()
+	if err != nil {
+		log.Printf("error getting master from %s: %s\n", addr, err)
+		return
+	}
+	masterAddr := net.JoinHostPort(response[0], response[1])
+	candidates <- masterAddr
+}
+
+// Master with most votes wins, takes the first on a tie. Maybe err on tie?
+// (split brain?)
 func countMasterVotes(masterVoting map[string]int) (string, int) {
 	currentMaster := ""
 	currentCount := 0
