@@ -69,6 +69,7 @@ func handleConnection(src net.Conn, destAddr string) {
 }
 
 func transfer(src net.Conn, dst net.Conn, done chan struct{}) {
+	defer close(done)
 	n, err := io.Copy(dst, src)
 	if errors.Is(err, net.ErrClosed) {
 		log.Printf("connection closed: %s -> %s. bytes written: %d\n",
@@ -88,5 +89,4 @@ func transfer(src net.Conn, dst net.Conn, done chan struct{}) {
 		n,
 		src.RemoteAddr().String(),
 		dst.RemoteAddr().String())
-	close(done)
 }
