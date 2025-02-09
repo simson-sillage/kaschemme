@@ -48,6 +48,13 @@ func redisMode(cmd *cobra.Command, args []string) {
 		SentinelPass:       "",
 	}
 	yaml.Unmarshal(rawConfig, &config)
+
+	if config.MasterName == "" {
+		log.Fatalln("You must provide the Redis master name in the redis config")
+	}
+	if len(config.Sentinels) < 1 {
+		log.Fatalln("You must provide sentinel(s) in the redis config!")
+	}
 	for _, sentinel := range config.Sentinels {
 		if _, err := net.ResolveTCPAddr("tcp", sentinel); err != nil {
 			log.Fatalf("invalid address: %s: %v\n", localAddr, err)
