@@ -65,7 +65,7 @@ Forwards any traffic on `localhost` port `6379` to the Redis Sentinel HA cluster
 Example `redis-config.yaml`:
 
 ```yaml
- # List all your sentinels here.
+# List all your sentinels here.
 sentinels:
 - 192.168.1.100:26379
 - 192.168.1.101:26379
