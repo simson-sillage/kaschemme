@@ -100,7 +100,7 @@ func updateMasterPeriodically(ptrMaster *atomic.Pointer[string], config RedisCon
 	log.Printf("trying to update master every %d seconds\n", config.MasterCacheTimeout)
 	for {
 		updateMaster(ptrMaster, config)
-		// should we user time.Ticker here?
+		// should we use time.Ticker here?
 		time.Sleep(cacheTimeout)
 	}
 }
