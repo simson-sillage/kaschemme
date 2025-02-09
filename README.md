@@ -79,6 +79,10 @@ master_name: master
 master_cache_timeout: 6  # Seconds. Defaults to 6 seconds.
 ```
 
+## Build
+
+Just clone the repo and run `go build .` inside.
+
 ## Motivation
 
 You have an app, e.g. Label Studio, that takes only a Redis endpoint, but you are running a Redis Sentinel HA cluster. Send the app traffic to _kaschemme_ and let _kaschemme_ talk to the Redis Sentinel cluster.
